@@ -1,0 +1,67 @@
+services:
+  minio:
+    image: ${MINIO_IMAGE}
+    container_name: ${MINIO_CONTAINER_NAME}
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:9001"
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - iceberg-network
+
+  mc:
+    image: ${MC_IMAGE}
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      WAREHOUSE_BUCKET: ${WAREHOUSE_BUCKET}
+    entrypoint: >
+      /bin/sh -c "
+        sleep 5;
+        mc alias set local http://${MINIO_HOST}:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+        mc mb local/${WAREHOUSE_BUCKET};
+        exit 0;
+      "
+    networks:
+      - iceberg-network
+
+  spark:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ${SPARK_CONTAINER_NAME}
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+      AWS_REGION: ${AWS_REGION}
+    volumes:
+      - spark_data:/home/iceberg
+    tty: true
+    stdin_open: true
+    networks:
+      - iceberg-network
+
+volumes:
+  minio_data:
+  spark_data:
+
+networks:
+  iceberg-network:
+    driver: bridge

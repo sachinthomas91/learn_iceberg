@@ -1,0 +1,54 @@
+# Spark Iceberg Configuration
+# Complete setup for Spark with Apache Iceberg and MinIO S3A
+# NOTE: This is a template. Variables are substituted at runtime from .env file.
+
+# Required packages for S3/MinIO and Iceberg support
+spark.jars.packages org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.565
+
+# Iceberg SQL Extensions
+spark.sql.extensions org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+
+# ============================================
+# Default Catalog (spark_catalog)
+# ============================================
+# Use local Hadoop catalog for easier setup
+spark.sql.catalog.spark_catalog org.apache.iceberg.spark.SparkSessionCatalog
+spark.sql.catalog.spark_catalog.type hadoop
+spark.sql.catalog.spark_catalog.warehouse /home/iceberg/warehouse
+
+# ============================================
+# Named Iceberg Catalog for S3/MinIO
+# Uses S3FileIO with proper credential chain
+# ============================================
+spark.sql.catalog.s3_catalog org.apache.iceberg.spark.SparkCatalog
+spark.sql.catalog.s3_catalog.type hadoop
+spark.sql.catalog.s3_catalog.warehouse s3a://warehouse
+spark.sql.catalog.s3_catalog.io-impl org.apache.iceberg.aws.s3.S3FileIO
+
+# Pass S3A credentials to S3FileIO via AWS SDK
+# Values substituted from .env: MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+spark.sql.catalog.s3_catalog.s3.access-key-id ${MINIO_ACCESS_KEY}
+spark.sql.catalog.s3_catalog.s3.secret-access-key ${MINIO_SECRET_KEY}
+spark.sql.catalog.s3_catalog.s3.endpoint ${AWS_S3_ENDPOINT}
+spark.sql.catalog.s3_catalog.s3.path-style-access true
+
+# ============================================
+# S3A Configuration for MinIO
+# ============================================
+# Values substituted from .env: MINIO_ACCESS_KEY, MINIO_SECRET_KEY, AWS_S3_ENDPOINT
+spark.hadoop.fs.s3a.access.key ${MINIO_ACCESS_KEY}
+spark.hadoop.fs.s3a.secret.key ${MINIO_SECRET_KEY}
+spark.hadoop.fs.s3a.endpoint ${AWS_S3_ENDPOINT}
+spark.hadoop.fs.s3a.path.style.access true
+spark.hadoop.fs.s3a.impl org.apache.hadoop.fs.s3a.S3AFileSystem
+spark.hadoop.fs.s3a.aws.credentials.provider org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+spark.hadoop.fs.s3a.connection.ssl.enabled false
+
+# AWS Region (required for S3A)
+spark.hadoop.fs.s3a.aws.region us-east-1
+
+# ============================================
+# Spark Defaults
+# ============================================
+spark.driver.memory 2g
+spark.executor.memory 2g
