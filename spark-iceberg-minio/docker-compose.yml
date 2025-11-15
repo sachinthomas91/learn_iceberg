@@ -51,6 +51,8 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
       AWS_REGION: ${AWS_REGION}
+    ports:
+      - "10000:10000"
     volumes:
       - spark_data:/home/iceberg
     tty: true

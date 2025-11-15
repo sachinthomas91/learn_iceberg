@@ -1,6 +1,6 @@
-# Spark + Iceberg + MinIO Setup
+# Spark + Iceberg + MinIO Learning Platform
 
-A simplified Docker setup for learning Apache Iceberg with Spark and MinIO S3 storage.
+A Docker-based learning platform for Apache Iceberg with Spark and MinIO S3 storage. Includes practical scenarios covering basic lake tables, SCD Type 2, and time travel auditing.
 
 ## Architecture
 
@@ -10,9 +10,9 @@ A simplified Docker setup for learning Apache Iceberg with Spark and MinIO S3 st
 │  (Local catalog) │
 └────────┬─────────┘
          │
-         ├─► /home/iceberg/warehouse (Default local storage)
+         ├─► /home/iceberg/warehouse (Local storage)
          │
-         └─► s3a://warehouse (MinIO S3 - configured but optional)
+         └─► s3a://warehouse (MinIO S3)
                     ↓
             ┌───────────────┐
             │    MinIO      │
@@ -38,45 +38,53 @@ This starts:
 docker exec -it iceberg-spark spark-sql
 ```
 
-### Create Iceberg Table (Local Storage)
-```sql
-CREATE TABLE spark_catalog.default.sales_daily (
-    sale_id INT,
-    sale_date DATE,
-    product STRING,
-    amount DOUBLE
-)
-USING iceberg
-PARTITIONED BY (sale_date);
+## Learning Scenarios
 
-INSERT INTO spark_catalog.default.sales_daily VALUES
-(1, DATE '2025-11-08', 'Apple', 100.0),
-(2, DATE '2025-11-08', 'Banana', 50.0);
+### 01 - Basic Lake Table
+Learn the fundamentals of Apache Iceberg with simple table operations.
 
-SELECT * FROM spark_catalog.default.sales_daily;
+**Files:**
+- `01_basic_lake_table/test_local_catalog.sql` - Create and query tables using local storage
+- `01_basic_lake_table/test_s3_catalog.sql` - Create and query tables using MinIO S3
+- `01_basic_lake_table/query_iceberg_metadata.py` - Inspect table metadata, snapshots, and files
+
+**Run Local Catalog Test:**
+```bash
+docker cp 01_basic_lake_table/test_local_catalog.sql iceberg-spark:/tmp/
+docker exec iceberg-spark spark-sql -f /tmp/test_local_catalog.sql
 ```
 
-Table data is stored in `/home/iceberg/warehouse` (local container filesystem).
-
-### Create Iceberg Table in MinIO S3
-```sql
-CREATE TABLE s3_catalog.default.sales_daily (
-    sale_id INT,
-    sale_date DATE,
-    product STRING,
-    amount DOUBLE
-)
-USING iceberg
-PARTITIONED BY (sale_date);
-
-INSERT INTO s3_catalog.default.sales_daily VALUES
-(1, DATE '2025-11-08', 'Apple', 100.0),
-(2, DATE '2025-11-08', 'Banana', 50.0);
-
-SELECT * FROM s3_catalog.default.sales_daily;
+**Run S3 Catalog Test:**
+```bash
+docker cp 01_basic_lake_table/test_s3_catalog.sql iceberg-spark:/tmp/
+docker exec iceberg-spark spark-sql -f /tmp/test_s3_catalog.sql
 ```
 
-Table data is stored in `s3a://warehouse` (MinIO S3 bucket) at `http://localhost:9000`.
+**Query Table Metadata:**
+```bash
+docker cp 01_basic_lake_table/query_iceberg_metadata.py iceberg-spark:/tmp/
+docker exec iceberg-spark python3 /tmp/query_iceberg_metadata.py
+```
+
+### 02 - SCD Type 2 (Slowly Changing Dimensions)
+Implement slowly changing dimensions using Iceberg's versioning capabilities.
+
+**Files:**
+- `02_scd_type2/scd2_basics.sql` - SCD Type 2 implementation with effective/end dates
+
+**Run SCD2 Examples:**
+```bash
+docker cp 02_scd_type2/scd2_basics.sql iceberg-spark:/tmp/
+docker exec iceberg-spark spark-sql -f /tmp/scd2_basics.sql
+```
+
+### 03 - Time Travel & Audit
+Explore Iceberg's time travel capabilities for data auditing and historical analysis.
+
+**Files:**
+- `03_time_travel_audit/` - Scenario for time travel queries and audit trails (in development)
+
+**Status:** Coming soon
 
 ## Catalogs
 
@@ -93,17 +101,22 @@ Table data is stored in `s3a://warehouse` (MinIO S3 bucket) at `http://localhost
 - **Best for**: Production-like scenarios
 - **Status**: Fully configured and tested
 
-## Files
+## Project Structure
 
-| File | Purpose |
-|------|---------|
-| `Dockerfile` | Custom image with Spark + Iceberg + entrypoint for config generation |
-| `docker-compose.yml` | Service definitions |
-| `spark-defaults.conf.template` | Spark & Iceberg configuration template with variable placeholders |
-| `.env` | Environment variables (credentials, ports) - **single source of truth** |
-| `examples/test_local_catalog.sql` | Test script for local catalog |
-| `examples/test_s3_catalog.sql` | Test script for S3 catalog |
-| `examples/query_iceberg_metadata.py` | Python script to view table metadata (snapshots, files, history) |
+```
+.
+├── Dockerfile                           # Custom image with Spark + Iceberg
+├── docker-compose.yml                   # Service definitions
+├── spark-defaults.conf.template         # Spark & Iceberg configuration template
+├── .env                                 # Environment variables (single source of truth)
+├── 01_basic_lake_table/                 # Basic Iceberg operations
+│   ├── test_local_catalog.sql          # Local storage example
+│   ├── test_s3_catalog.sql             # MinIO S3 example
+│   └── query_iceberg_metadata.py       # Inspect table metadata
+├── 02_scd_type2/                        # SCD Type 2 implementation
+│   └── scd2_basics.sql                 # Slowly changing dimensions example
+└── 03_time_travel_audit/                # Time travel & audit (in development)
+```
 
 ## Configuration Details
 
@@ -157,44 +170,31 @@ This setup removes the original complexity:
 - Cleaner docker-compose.yml
 - All configuration in one place
 
-## Testing
+## Running the Scenarios
 
-### Test Local Catalog
+See the **Learning Scenarios** section above for specific instructions for each scenario.
+
+### Quick Test All Scenarios
 ```bash
-docker cp examples/test_local_catalog.sql iceberg-spark:/tmp/
+# Start services
+docker-compose up -d
+
+# Run basic lake table tests
+docker cp 01_basic_lake_table/test_local_catalog.sql iceberg-spark:/tmp/
 docker exec iceberg-spark spark-sql -f /tmp/test_local_catalog.sql
-```
 
-Expected output:
-- Table created with 4 rows
-- Partitioned by `sale_date`
-- Location: `/home/iceberg/warehouse/default/sales_daily`
-- Format: Iceberg/Parquet (format-version=2)
-
-### Test S3 Catalog
-```bash
-docker cp examples/test_s3_catalog.sql iceberg-spark:/tmp/
+# Run S3 catalog test
+docker cp 01_basic_lake_table/test_s3_catalog.sql iceberg-spark:/tmp/
 docker exec iceberg-spark spark-sql -f /tmp/test_s3_catalog.sql
-```
 
-Expected output:
-- Table created in MinIO S3
-- Location: `s3a://warehouse/default/sales_daily`
-- Data accessible at `http://localhost:9000/warehouse`
-
-### View Table Metadata (Snapshots, Files, History)
-```bash
-docker cp examples/query_iceberg_metadata.py iceberg-spark:/tmp/
+# Query metadata
+docker cp 01_basic_lake_table/query_iceberg_metadata.py iceberg-spark:/tmp/
 docker exec iceberg-spark python3 /tmp/query_iceberg_metadata.py
-```
 
-This displays:
-- **TABLE DATA** - Current table records
-- **SNAPSHOTS** - All versions/commits of the table
-- **HISTORY** - Timeline of snapshot changes
-- **FILES** - Physical parquet files stored in S3
-- **MANIFESTS** - Metadata index files
-- **SCHEMA** - Table structure and partitions
+# Run SCD Type 2 example
+docker cp 02_scd_type2/scd2_basics.sql iceberg-spark:/tmp/
+docker exec iceberg-spark spark-sql -f /tmp/scd2_basics.sql
+```
 
 ## Troubleshooting
 
@@ -226,10 +226,18 @@ spark.sql.catalog.s3_catalog.s3.path-style-access true
 
 **Critical**: AWS SDK v2 requires `AWS_REGION` environment variable to be set (configured in Dockerfile as `us-east-1`).
 
-## Next Steps
+## Learning Path
 
-- Use `s3_catalog` for multi-node deployments
-- Add Iceberg REST catalog for production
-- Implement table evolution (schema changes)
-- Set up Spark jobs for batch processing
+1. **Start with Scenario 01** - Understand basic Iceberg table creation, writes, and queries
+2. **Explore metadata** - Use the metadata inspection script to understand snapshots and versioning
+3. **Learn SCD Type 2** - See how Scenario 02 implements slowly changing dimensions
+4. **Prepare for Scenario 03** - Understand time travel concepts before the time travel scenario
+
+## Next Steps & Advanced Topics
+
+- Experiment with schema evolution (ALTER TABLE ADD COLUMN)
+- Implement custom partitioning strategies
+- Build Spark jobs for batch processing with Iceberg
+- Add Iceberg REST catalog for production deployments
+- Set up data quality checks with Iceberg metadata
 - Monitor tables in MinIO console: http://localhost:9001 (minioadmin/minioadmin123)

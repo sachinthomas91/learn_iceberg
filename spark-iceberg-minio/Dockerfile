@@ -7,9 +7,33 @@ RUN apt-get update && apt-get install -y curl gettext-base && rm -rf /var/lib/ap
 COPY spark-defaults.conf.template /opt/spark/conf/spark-defaults.conf.template
 
 # Create entrypoint script to process template with environment variables
-RUN echo '#!/bin/bash\n\
-envsubst < /opt/spark/conf/spark-defaults.conf.template > /opt/spark/conf/spark-defaults.conf\n\
-exec "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+RUN cat > /entrypoint.sh << 'EOF'
+#!/bin/bash
+set -e
+
+# Process Spark configuration template with environment variables
+envsubst < /opt/spark/conf/spark-defaults.conf.template > /opt/spark/conf/spark-defaults.conf
+
+# Start Thrift Server in background, redirect to stderr to see output
+echo "Starting Spark Thrift Server..."
+$SPARK_HOME/sbin/start-thriftserver.sh --master "local[*]" 2>&1 &
+THRIFT_PID=$!
+echo "Thrift Server started with PID: $THRIFT_PID"
+
+# Give Thrift Server time to start
+sleep 8
+
+# Check if Thrift Server is running
+if kill -0 $THRIFT_PID 2>/dev/null; then
+  echo "Thrift Server is running"
+else
+  echo "Warning: Thrift Server process exited"
+fi
+
+# Execute the main command (bash)
+"$@"
+EOF
+RUN chmod +x /entrypoint.sh
 
 # Set working directory
 WORKDIR /home/iceberg
